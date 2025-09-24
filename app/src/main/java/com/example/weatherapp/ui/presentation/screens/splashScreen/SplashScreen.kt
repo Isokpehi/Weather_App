@@ -35,34 +35,43 @@ import com.example.weatherapp.R
 import kotlinx.coroutines.delay
 
 
+/**
+ * Splash screen composable that displays the weather app logo with animations
+ * and automatically navigates to the search city screen after a delay.
+ *
+ * @param modifier Modifier to be applied to the root composable
+ * @param onNavigateToSearchCityScreen Callback function to navigate to the next screen
+ */
 @Composable
 fun SplashContent(
     modifier: Modifier = Modifier,
     onNavigateToSearchCityScreen: () -> Unit
 ) {
 
+    // State variable to control when animations should start
     var startAnimation by remember { mutableStateOf(false) }
 
-    // animation values
+    // Animation for fade-in effect (opacity from 0 to 1)
     val alphaAnim by animateFloatAsState(
         targetValue = if (startAnimation) 1f else 0f,
         animationSpec = tween(durationMillis = 1000),
         label = "alpha"
     )
-
+    // Animation for scale effect (grows from 30% to 100% size)
     val scaleAnim by animateFloatAsState(
         targetValue = if (startAnimation) 1f else 0.3f,
         animationSpec = tween(durationMillis = 1000),
         label = "scale"
     )
 
-    // Start animation and navigate after delay
+    // Side effect that runs once when the composable is first composed
     LaunchedEffect(key1 = true) {
         startAnimation = true
-        delay(3000) // Show splash for 3 seconds
+        delay(1000) // Show splash for 2seconds
         onNavigateToSearchCityScreen()
     }
 
+    // Root container that fills the entire screen
     Box(
         modifier = modifier.fillMaxSize()
     ) {
@@ -115,6 +124,10 @@ fun SplashContent(
     }
 }
 
+/**
+ * Preview composable for the splash screen
+ * Allows viewing the splash screen in Android Studio's design preview
+ */
 @Preview(showBackground = true)
 @Composable
 fun SplashContentPreview() {

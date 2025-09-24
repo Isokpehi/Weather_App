@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,29 +39,75 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.example.weatherapp.R
+import com.example.weatherapp.data.local.model.SavedCityModel
+import com.example.weatherapp.domain.model.Clouds
+import com.example.weatherapp.domain.model.Coord
 import com.example.weatherapp.domain.model.GeoLocation
+import com.example.weatherapp.domain.model.Main
+import com.example.weatherapp.domain.model.Sys
+import com.example.weatherapp.domain.model.Weather
+import com.example.weatherapp.domain.model.WeatherResponse
+import com.example.weatherapp.domain.model.Wind
+import com.example.weatherapp.ui.presentation.screens.searchCityScreen.SavedCityViewModel
 
+/**
+ * Main screen composable for displaying weather details.
+ * Handles loading, error, and content states using uiState.
+ */
 @Composable
 fun WeatherHomeScreen(
     modifier: Modifier = Modifier,
     geoLocation: GeoLocation,
     onNavigateBack: () -> Unit = {},
-    viewModel: WeatherHomeViewModel = hiltViewModel()
+    viewModel: WeatherHomeViewModel = hiltViewModel(),
+    savedCityViewModel: SavedCityViewModel = hiltViewModel()
+
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    val savedCityState by savedCityViewModel.getData.collectAsState()
+    val cityFromStore = savedCityState.city
 
     LaunchedEffect(geoLocation) {
         viewModel.loadWeatherData(geoLocation)
     }
 
+    // Fixed temperature calculations with proper null safety
+    val temperature = "${uiState.weatherData?.main?.temp}°C"
+
+    val feelsLike = "Feels like ${uiState.weatherData?.main?.feelsLike}°C"
+
+    val humidity = uiState.weatherData?.main?.humidity?.let {
+        "${it}%" // Don't use getFormattedHumidity since it already adds %
+    } ?: "--"
+
+    val windSpeed = uiState.weatherData?.wind?.speed?.let {
+        viewModel.getFormattedWindSpeed(it)
+    } ?: "--"
+
+    val visibility = uiState.weatherData?.visibility?.let {
+        viewModel.getFormattedVisibility(it)
+    } ?: "--"
+
     WeatherHomeContent(
         modifier = modifier,
         uiState = uiState,
         onRetry = viewModel::retry,
-        onSaveFavorite = viewModel::saveFavoriteCity,
+        onSaveFavorite = {
+            // Save the current city name to DataStore
+            val cityName = geoLocation.name
+            savedCityViewModel.saveData(SavedCityModel(cityName))
+        },
         onNavigateBack = onNavigateBack,
-        viewModel = viewModel
+        temperature = temperature,
+        feelsLike = feelsLike,
+        humidity = humidity,
+        windSpeed = windSpeed,
+        visibility = visibility
     )
 }
 
@@ -72,12 +119,17 @@ fun WeatherHomeContent(
     onRetry: () -> Unit = {},
     onSaveFavorite: () -> Unit = {},
     onNavigateBack: () -> Unit = {},
-    viewModel: WeatherHomeViewModel? = null
-) {
+    temperature: String,
+    feelsLike: String,
+    humidity: String,
+    windSpeed: String,
+    visibility: String,
+
+
+    ) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .aspectRatio(0.45f)
             .background(
                 Brush.linearGradient(
                     colors = listOf(
@@ -129,8 +181,10 @@ fun WeatherHomeContent(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp),
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.Top
                     ) {
                         Icon(
@@ -150,21 +204,35 @@ fun WeatherHomeContent(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Replace with your weather icon based on weatherData.weather[0].icon
-                    Image(
-                        painter = painterResource(id = R.drawable.sun_cloud_angled_rain__1_),
-                        contentDescription = uiState.weatherData.weather.firstOrNull()?.description
-                            ?: "",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(200.dp)
-                    )
+                    // Weather Icon using Coil to load from OpenWeatherMap API
+                    val weatherIcon = uiState.weatherData.weather.firstOrNull()?.icon
+                    if (weatherIcon != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data("https://openweathermap.org/img/wn/$weatherIcon@4x.png")
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = uiState.weatherData.weather.firstOrNull()?.description,
+                            modifier = Modifier.size(160.dp),
+                            contentScale = ContentScale.Fit,
+                            placeholder = painterResource(id = R.drawable.sun_cloud_angled_rain__1_),
+                            error = painterResource(id = R.drawable.sun_cloud_angled_rain__1_)
+                        )
+                    } else {
+                        // Fallback to local image
+                        Image(
+                            painter = painterResource(id = R.drawable.sun_cloud_angled_rain__1_),
+                            contentDescription = "Weather Icon",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(200.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
                     // Temperature
                     Text(
-                        text = viewModel?.getFormattedTemperature(uiState.weatherData.main.temp)
-                            ?: "${uiState.weatherData.main.temp.toInt()}°",
+                        text = temperature,
                         color = Color.White,
                         fontSize = 64.sp,
                         fontWeight = FontWeight.Bold
@@ -180,13 +248,9 @@ fun WeatherHomeContent(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // Min/Max temperature
+                    // feels like temperature
                     Text(
-                        text = "Max: ${viewModel?.kelvinToCelsius(uiState.weatherData.main.tempMax) ?: (uiState.weatherData.main.tempMax - 273.15).toInt()}°  Min: ${
-                            viewModel?.kelvinToCelsius(
-                                uiState.weatherData.main.tempMin
-                            ) ?: (uiState.weatherData.main.tempMin - 273.15).toInt()
-                        }°",
+                        text = feelsLike,
                         color = Color.White,
                         fontSize = 14.sp
                     )
@@ -206,26 +270,23 @@ fun WeatherHomeContent(
                     ) {
                         // Precipitation (using rain data)
                         WeatherDetailItem(
-                            icon = "💧",
-                            value = viewModel?.getRealPrecipitationPercentage()
-                                ?: viewModel?.getPrecipitationPercentage()
-                                ?: "${uiState.weatherData.clouds.all}%"
+                            icon = painterResource(R.drawable.smoke),
+                            value = humidity,
+                            label = "Humidity"
 
                         )
 
-                        // Humidity
                         WeatherDetailItem(
-                            icon = "💧",
-                            value = viewModel?.getFormattedHumidity(uiState.weatherData.main.humidity)
-                                ?: "${uiState.weatherData.main.humidity}%"
+                            icon = painterResource(R.drawable.smoke),
+                            value = windSpeed,
+                            label = "km/h"
 
                         )
 
-                        // Wind speed
                         WeatherDetailItem(
-                            icon = "💨",
-                            value = viewModel?.getFormattedWindSpeed(uiState.weatherData.wind.speed)
-                                ?: "${uiState.weatherData.wind.speed.toInt()} km/h"
+                            icon = painterResource(R.drawable.eye),
+                            value = visibility,
+                            label = "km"
 
                         )
                     }
@@ -258,34 +319,15 @@ fun WeatherHomeContent(
                                 fontSize = 14.sp
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val times = viewModel?.getHourlyForecastTimes() ?: listOf(
-                                "15:00",
-                                "16:00",
-                                "17:00",
-                                "18:00"
-                            )
-                            val temps = viewModel?.getHourlyForecastTemperatures()
-                                ?: List(4) { "${uiState.weatherData.main.temp.toInt()}°C" }
-
-                            times.zip(temps).forEach { (time, temp) ->
-                                HourlyForecastItem(time = time, temp = temp)
-                            }
-                        }
-
                     }
 
                     Spacer(modifier = Modifier.height(40.dp))
 
                     // Next Forecast button
                     Button(
-                        onClick = { /* Navigate to detailed forecast */ },
+                        onClick = {
+                            onSaveFavorite()
+                        },
                         modifier = Modifier
                             .fillMaxWidth(0.6f)
                             .height(48.dp),
@@ -300,6 +342,25 @@ fun WeatherHomeContent(
                             fontSize = 16.sp
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(40.dp))
+
+                    Button(
+                        onClick = { onNavigateBack() },
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF175DE0)
+                        ),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Text(
+                            text = "Search Another City",
+                            color = Color.White,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
             }
         }
@@ -309,69 +370,86 @@ fun WeatherHomeContent(
 
 @Composable
 fun WeatherDetailItem(
-    icon: String,
-    value: String
+    icon: Painter,
+    value: String,
+    label: String
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = icon,
-            fontSize = 16.sp
+        Image(
+            painter = icon,
+            contentDescription = "Weather Icon",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(16.dp)
         )
         Text(
             text = value,
             color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
         )
-    }
-}
-
-@Composable
-fun HourlyForecastItem(
-    time: String,
-    temp: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(4.dp)
-    ) {
         Text(
-            text = temp,
+            text = label,
             color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Weather icon placeholder
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(
-                    Color.White.copy(alpha = 0.2f),
-                    RoundedCornerShape(8.dp)
-                )
-        ) {
-            // Use your weather icon here
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = time,
-            color = Color.White.copy(alpha = 0.8f),
-            fontSize = 12.sp
+            fontSize = 12.sp,
         )
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
 fun WeatherHomeContentPreview() {
+    // Create mock data directly in the UiState
+    val mockUiState = WeatherHomeUiState(
+        isLoading = false,
+        weatherData = WeatherResponse(
+            main = Main(
+                temp = 298.15, // 25°C in Kelvin
+                feelsLike = 295.15, // 22°C in Kelvin
+                humidity = 65,
+                pressure = 1013,
+                tempMin = 295.15,
+                tempMax = 300.15
+            ),
+            weather = listOf(
+                Weather(
+                    id = 802,
+                    main = "Clouds",
+                    description = "partly cloudy",
+                    icon = "03d"
+                )
+            ),
+            wind = Wind(speed = 1.39, deg = 240), // 1.39 m/s = ~5 km/h
+            visibility = 10000,
+            name = "Lagos",
+            sys = Sys(country = "NG", sunrise = 0, sunset = 0),
+            coord = Coord(1.1, 1.1),
+            base = "",
+            clouds = Clouds(1),
+            dt = 5L,
+            timezone = 4,
+            id = 6,
+            cod = 6
+        ),
+        currentLocation = GeoLocation(
+            lat = 6.5244,
+            lon = 3.3792,
+            name = "Lagos",
+            country = "NG"
+        ),
+        errorMessage = null,
+        currentDate = "Sep 24, 2025",
+        currentTime = "14:30"
+    )
+
     WeatherHomeContent(
-        uiState = WeatherHomeUiState()
+        uiState = mockUiState,
+        temperature = "25°C",
+        feelsLike = "Feels like: 22°C",
+        humidity = "65%",
+        windSpeed = "5 km/h",
+        visibility = "10km"
     )
 }

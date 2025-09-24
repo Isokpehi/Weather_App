@@ -59,6 +59,9 @@ fun WeatherNavigation(
 
             WeatherHomeScreen(
                 geoLocation = geoLocation,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
             )
         }
     }

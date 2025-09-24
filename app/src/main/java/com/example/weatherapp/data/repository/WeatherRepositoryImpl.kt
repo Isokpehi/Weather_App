@@ -10,12 +10,21 @@ import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Implementation of [WeatherRepository] that provides actual data from remote sources.
+ */
 @Singleton
 class WeatherRepositoryImpl @Inject constructor(
     private val weatherApi: WeatherApi,
     private val geocodingApi: GeocodingApi
 ) : WeatherRepository {
 
+    /**
+     * Searches for cities based on the query.
+     *
+     * @param query The search query.
+     * @return A [Response] containing the list of cities.
+     */
     override suspend fun searchCities(query: String): Response<List<GeoLocation>> {
         return geocodingApi.searchCities(
             query = query,
@@ -23,6 +32,13 @@ class WeatherRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * Gets weather data for a specific location.
+     *
+     * @param lat The latitude of the location.
+     * @param lon The longitude of the location.
+     * @return A [Response] containing the weather data.
+     */
     override suspend fun getWeatherByCoordinates(lat: Double, lon: Double): Response<WeatherResponse> {
         return weatherApi.getWeatherByCoordinates(
             lat = lat,
@@ -32,6 +48,13 @@ class WeatherRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * Gets hourly weather forecast for a specific location.
+     *
+     * @param lat The latitude of the location.
+     * @param lon The longitude of the location.
+     * @return A [Response] containing the hourly weather forecast.
+     */
     override suspend fun getHourlyForecast(lat: Double, lon: Double): Response<HourlyForecastResponse> {
         return weatherApi.getHourlyForecast(
             lat = lat,

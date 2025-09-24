@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,6 +12,14 @@ plugins {
     id("com.google.dagger.hilt.android")
     id ("kotlin-parcelize")
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
+val apiKey: String = localProperties.getProperty("API_KEY") ?: ""
 
 android {
     namespace = "com.example.weatherapp"
@@ -22,10 +33,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        val apiKey: String = (project.findProperty("API_KEY") as? String)
-            ?: System.getenv("API_KEY") // Fallback to environment variable
-            ?: ""
 
         buildConfigField("String", "API_KEY", "\"$apiKey\"")
     }

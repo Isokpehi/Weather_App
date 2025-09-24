@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Weather App</string>
+
+
+    <string name="sad_face_icon">Sad Face Icon</string>
+    <string name="empty_content">No Tasks Found.</string>
+</resources>

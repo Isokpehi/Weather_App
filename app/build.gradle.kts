@@ -23,7 +23,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val apiKey: String = project.findProperty("API_KEY") as String
+        val apiKey: String = (project.findProperty("API_KEY") as? String)
+            ?: System.getenv("API_KEY") // Fallback to environment variable
+            ?: ""
+
         buildConfigField("String", "API_KEY", "\"$apiKey\"")
     }
 
